@@ -312,8 +312,64 @@
 <script>
 // ========== Character Definitions ==========
 const CHARACTERS = [
-  { id:'fire',    name:'小黑', draw(ctx,r){ const g=ctx.createRadialGradient(-r*.3,-r*.3,r*.1,0,0,r); g.addColorStop(0,'#fff'); g.addColorStop(.25,'#ffdd00'); g.addColorStop(.55,'#ff6600'); g.addColorStop(1,'#911'); ctx.fillStyle=g; ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fill(); ctx.save(); ctx.clip(); for(let i=0;i<5;i++){ const a=i*Math.PI*.4+.2; ctx.fillStyle='rgba(255,255,200,0.25)'; ctx.beginPath(); ctx.moveTo(0,0); ctx.arc(0,0,r*.85,a,a+.3); ctx.closePath(); ctx.fill(); } ctx.restore(); } },
-  { id:'thunder', name:'阿力', draw(ctx,r){ const g=ctx.createRadialGradient(-r*.25,-r*.25,r*.08,0,0,r); g.addColorStop(0,'#fff'); g.addColorStop(.2,'#fe4'); g.addColorStop(.6,'#fa0'); g.addColorStop(1,'#630'); ctx.fillStyle=g; ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fill(); ctx.save(); ctx.clip(); ctx.fillStyle='rgba(255,255,255,0.35)'; ctx.beginPath(); ctx.moveTo(-r*.25,-r*.7); ctx.lineTo(r*.1,-r*.15); ctx.lineTo(-r*.05,-r*.05); ctx.lineTo(r*.3,r*.55); ctx.lineTo(r*.05,r*.2); ctx.lineTo(r*.2,r*.1); ctx.lineTo(-r*.2,r*.7); ctx.closePath(); ctx.fill(); ctx.restore(); } },
+  { id:'fire', name:'小黑', draw(ctx,r){
+    // Black body
+    const g=ctx.createRadialGradient(-r*.3,-r*.3,r*.08,0,0,r);
+    g.addColorStop(0,'#555'); g.addColorStop(.35,'#1a1a1a'); g.addColorStop(1,'#000');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fill();
+    // Clip to circle for scarf body
+    ctx.save(); ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.clip();
+    // Dark red base band
+    ctx.fillStyle='#b51515';
+    ctx.beginPath(); ctx.ellipse(0,r*.22,r*.86,r*.36,0,0,Math.PI*2); ctx.fill();
+    // Brighter red highlight
+    ctx.fillStyle='#e02525';
+    ctx.beginPath(); ctx.ellipse(0,r*.13,r*.66,r*.22,0,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  } },
+  { id:'thunder', name:'阿力', draw(ctx,r){
+    // Ears (black, behind head)
+    ctx.fillStyle='#000';
+    ctx.beginPath(); ctx.arc(-r*.5,-r*.55,r*.18,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(r*.5,-r*.55,r*.18,0,Math.PI*2); ctx.fill();
+    // White panda head
+    const g=ctx.createRadialGradient(-r*.2,-r*.2,r*.04,0,0,r);
+    g.addColorStop(0,'#fff'); g.addColorStop(.4,'#f5f1ea'); g.addColorStop(1,'#d5cec2');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fill();
+    // Panda eye patches
+    ctx.fillStyle='#000';
+    ctx.beginPath(); ctx.ellipse(-r*.3,r*.08,r*.16,r*.22,-0.08,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(r*.3,r*.08,r*.16,r*.22,0.08,0,Math.PI*2); ctx.fill();
+    // Eye highlights
+    ctx.fillStyle='#fff';
+    ctx.beginPath(); ctx.arc(-r*.26,r*.05,r*.05,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(r*.34,r*.05,r*.05,0,Math.PI*2); ctx.fill();
+    // Nose
+    ctx.fillStyle='#222';
+    ctx.beginPath(); ctx.ellipse(0,r*.18,r*.04,r*.03,0,0,Math.PI*2); ctx.fill();
+    // Mouth
+    ctx.strokeStyle='#555'; ctx.lineWidth=.5;
+    ctx.beginPath(); ctx.moveTo(-r*.05,r*.22); ctx.quadraticCurveTo(0,r*.28,r*.05,r*.22); ctx.stroke();
+    // Black truncated cone hat
+    ctx.save();
+    ctx.fillStyle='#000';
+    ctx.beginPath();
+    ctx.moveTo(-r*1.3,-r*.1);
+    ctx.lineTo(-r*.65,-r*0.8);
+    ctx.lineTo(r*.65,-r*0.8);
+    ctx.lineTo(r*1.3,-r*.1);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle='#1a1a1a'; ctx.lineWidth=.6; ctx.stroke();
+    // Golden X mark (rgb(255,201,14)) on hat front
+    ctx.strokeStyle='rgba(255,200,15,0.28)'; ctx.lineWidth=5; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(-r*.15,-r*.65); ctx.lineTo(r*.15,-r*.35); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(r*.15,-r*.65); ctx.lineTo(-r*.15,-r*.35); ctx.stroke();
+    ctx.strokeStyle='rgb(255,201,14)'; ctx.lineWidth=2.2;
+    ctx.beginPath(); ctx.moveTo(-r*.15,-r*.65); ctx.lineTo(r*.15,-r*.35); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(r*.15,-r*.65); ctx.lineTo(-r*.15,-r*.35); ctx.stroke();
+    ctx.restore();
+  } },
 ];
 
 function getCharById(id) {
@@ -410,6 +466,118 @@ let projectiles = [];
 let lightningBolts = [];
 let screenFlash = 0; // 0=none, 0-1=fade timer for flame scroll AoE
 
+// ========== Sound System ==========
+let audioCtx = null;
+
+function initAudio() {
+  if (audioCtx) return;
+  try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
+}
+
+function sfx(type) {
+  if (!audioCtx) return;
+  try { if (audioCtx.state === 'suspended') audioCtx.resume(); } catch (e) { return; }
+  const ctx = audioCtx;
+  const t = ctx.currentTime;
+
+  function noiseBuf(dur) {
+    const len = Math.floor(ctx.sampleRate * dur);
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    return buf;
+  }
+  function noise(dur, gain, freq) {
+    const src = ctx.createBufferSource();
+    src.buffer = noiseBuf(dur);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(gain, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    if (freq) { const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = freq; src.connect(f); f.connect(g); }
+    else { src.connect(g); }
+    g.connect(ctx.destination);
+    src.start(t); src.stop(t + dur);
+  }
+  function tone(freq, gain, dur, wave) {
+    const osc = ctx.createOscillator();
+    osc.type = wave || 'triangle';
+    osc.frequency.setValueAtTime(freq, t);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(gain, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    osc.connect(g); g.connect(ctx.destination);
+    osc.start(t); osc.stop(t + dur);
+  }
+  function sweep(startF, endF, gain, dur, wave) {
+    const osc = ctx.createOscillator();
+    osc.type = wave || 'sawtooth';
+    osc.frequency.setValueAtTime(startF, t);
+    osc.frequency.exponentialRampToValueAtTime(Math.max(endF, 1), t + dur);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(gain, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    osc.connect(g); g.connect(ctx.destination);
+    osc.start(t); osc.stop(t + dur);
+  }
+
+  switch (type) {
+    case 'collision':
+      noise(0.06, 0.22, 300);
+      tone(75, 0.12, 0.06, 'sine');
+      break;
+    case 'wall':
+      tone(500, 0.07, 0.03, 'square');
+      break;
+    case 'fireSpawn': {
+      const buf = noiseBuf(0.22);
+      const src = ctx.createBufferSource(); src.buffer = buf;
+      const f = ctx.createBiquadFilter();
+      f.type = 'bandpass'; f.frequency.setValueAtTime(200, t);
+      f.frequency.linearRampToValueAtTime(1400, t + 0.22); f.Q.value = 0.8;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.12, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+      src.connect(f); f.connect(g); g.connect(ctx.destination);
+      src.start(t); src.stop(t + 0.25);
+      break;
+    }
+    case 'fireHit':
+      noise(0.1, 0.17, 500);
+      tone(100, 0.11, 0.08, 'sine');
+      break;
+    case 'lightning':
+      sweep(1800, 80, 0.06, 0.12, 'sawtooth');
+      noise(0.12, 0.04, 3000);
+      break;
+    case 'lightningHit':
+      sweep(2400, 50, 0.09, 0.1, 'sawtooth');
+      noise(0.07, 0.16, 200);
+      break;
+    case 'damage':
+      noise(0.07, 0.1, 250);
+      tone(55, 0.07, 0.07, 'sine');
+      break;
+    case 'revive':
+      sweep(200, 900, 0.15, 0.35, 'triangle');
+      noise(0.3, 0.16, 500);
+      break;
+    case 'boost':
+      sweep(300, 1200, 0.12, 0.35, 'triangle');
+      noise(0.2, 0.05, 6000);
+      break;
+    case 'victory':
+      [523, 659, 784].forEach((freq, i) => {
+        const osc = ctx.createOscillator(); osc.type = 'triangle'; osc.frequency.value = freq;
+        const g = ctx.createGain(); const st = t + i * 0.12;
+        g.gain.setValueAtTime(0, t); g.gain.setValueAtTime(0.1, st);
+        g.gain.exponentialRampToValueAtTime(0.001, st + 0.3);
+        osc.connect(g); g.connect(ctx.destination);
+        osc.start(st); osc.stop(st + 0.3);
+      });
+      break;
+  }
+}
+
 function createBalls() {
   gameOver = null;
   victoryShown = false;
@@ -443,9 +611,11 @@ function createBalls() {
       baseSpeed: SPEED,
       fireballTimer: 0,       // 小黑: counts up to 5s
       revived: false,         // 小黑: one-time revive used?
+      scarfTrail: [],        // 小黑: trailing scarf positions
       stunned: 0,
       lightningMisses: 0,     // 阿力: consecutive missed casts
       lastLightningTime: 0,   // 阿力: timestamp of last lightning cast for damage decay
+      boosted: false,         // 阿力: whether speed boost is active
     });
   }
 }
@@ -475,6 +645,7 @@ function spawnLightningBolts(origin, count) {
   if (interval < 0.2) return;
   const boltDamage = Math.round(Math.min(10, 2 + interval * 8));
   origin.lastLightningTime = now;
+  sfx('lightning');
 
   // Pity system: if 3 casts missed, force one bolt to aim at enemy
   const pity = origin.lightningMisses >= 3;
@@ -559,6 +730,7 @@ function spawnLightningBolts(origin, count) {
     if (totalDmg > 0) {
       takeDamage(enemy, totalDmg);
       enemy.stunned = Math.max(enemy.stunned, 0.5);
+      sfx('lightningHit');
     }
   }
 }
@@ -590,6 +762,7 @@ function resolveBallCollision(a, b) {
   const minDist = a.radius + b.radius;
 
   if (dist >= minDist || dist < 0.001) return;
+  sfx('collision');
 
   const nx = dx / dist;
   const ny = dy / dist;
@@ -621,12 +794,14 @@ function resolveBallCollision(a, b) {
 function takeDamage(ball, dmg) {
   if (ball.hp <= 0) return;
   ball.hp = Math.max(0, ball.hp - dmg);
+  sfx('damage');
 
   // 小黑 revive: 火焰卷轴
   if (ball.hp <= 0 && ball.character.id === 'fire' && !ball.revived) {
     ball.revived = true;
     ball.hp = 30;
     screenFlash = 0.5; // AoE visual
+    sfx('revive');
     const enemy = balls.find(b => b !== ball);
     if (enemy) {
       enemy.hp = Math.max(0, enemy.hp - 10);
@@ -657,12 +832,15 @@ function update(dt) {
       if (ball.fireballTimer >= 5) {
         ball.fireballTimer -= 5;
         const enemy = balls.find(b => b !== ball);
-        if (enemy) spawnFireballs(ball, enemy);
+        if (enemy) { spawnFireballs(ball, enemy); sfx('fireSpawn'); }
       }
     }
     // 阿力: speed boost under 50% HP
     if (ball.character.id === 'thunder') {
-      ball.baseSpeed = ball.hp < 50 ? SPEED_BOOST : SPEED;
+      const wasBoosted = ball.boosted;
+      ball.boosted = ball.hp < 50;
+      ball.baseSpeed = ball.boosted ? SPEED_BOOST : SPEED;
+      if (ball.boosted && !wasBoosted) sfx('boost');
     }
     // Paralysis decay
     if (ball.stunned > 0) ball.stunned = Math.max(0, ball.stunned - t);
@@ -707,6 +885,7 @@ function update(dt) {
       const dy = proj.y - enemy.y;
       if (Math.sqrt(dx * dx + dy * dy) < enemy.radius + proj.radius) {
         takeDamage(enemy, proj.damage);
+        sfx('fireHit');
         proj.life = -1;
       }
     }
@@ -727,11 +906,18 @@ function update(dt) {
     ball.x += ball.vx * t;
     ball.y += ball.vy * t;
 
+    // 小黑 scarf trail
+    if (ball.character.id === 'fire' && ball.scarfTrail) {
+      ball.scarfTrail.push({ x: ball.x, y: ball.y });
+      if (ball.scarfTrail.length > 150) ball.scarfTrail.shift();
+    }
+
     let hitWall = false;
     if (ball.x - ball.radius < 0)      { ball.x = ball.radius;          ball.vx = Math.abs(ball.vx); hitWall = true; }
     if (ball.x + ball.radius > SIZE)   { ball.x = SIZE - ball.radius;   ball.vx = -Math.abs(ball.vx); hitWall = true; }
     if (ball.y - ball.radius < 0)      { ball.y = ball.radius;          ball.vy = Math.abs(ball.vy); hitWall = true; }
     if (ball.y + ball.radius > SIZE)   { ball.y = SIZE - ball.radius;   ball.vy = -Math.abs(ball.vy); hitWall = true; }
+    if (hitWall) sfx('wall');
     // 阿力: wall collision also spawns lightning bolts
     if (hitWall && ball.character.id === 'thunder' && !gameOver) spawnLightningBolts(ball, 4);
   }
@@ -752,6 +938,19 @@ function drawBall(ball) {
   ctx.arc(3, 3, ball.radius, 0, Math.PI * 2);
   ctx.fillStyle = 'rgba(0,0,0,0.35)';
   ctx.fill();
+
+  // 阿力 speed boost glow
+  if (ball.character.id === 'thunder' && ball.boosted) {
+    const pulse = 0.7 + 0.3 * Math.sin(performance.now() / 200);
+    const glow = ctx.createRadialGradient(0, 0, ball.radius * 0.5, 0, 0, ball.radius * 1.8);
+    glow.addColorStop(0, `rgba(255,230,60,${0.45 * pulse})`);
+    glow.addColorStop(0.45, `rgba(255,200,20,${0.2 * pulse})`);
+    glow.addColorStop(1, 'rgba(255,150,0,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(0, 0, ball.radius * 1.8, 0, Math.PI * 2);
+    ctx.fill();
+  }
 
   ball.character.draw(ctx, ball.radius);
 
@@ -838,6 +1037,62 @@ function draw() {
 
   // Lightning bolts (behind balls)
   drawLightningBolts();
+
+  // 小黑 scarf trails (behind balls)
+  for (const ball of balls) {
+    if (ball.character.id !== 'fire' || !ball.scarfTrail || ball.scarfTrail.length < 2) continue;
+    const trail = ball.scarfTrail;
+    const now = performance.now() / 1000;
+
+    // Compute wobble offsets for each trail point
+    const wobble = [];
+    for (let i = 0; i < trail.length; i++) {
+      const t = i / Math.max(trail.length - 1, 1); // 0=tail, 1=ball
+      let perpX = 0, perpY = 1;
+      if (i < trail.length - 1) {
+        const dx = trail[i + 1].x - trail[i].x;
+        const dy = trail[i + 1].y - trail[i].y;
+        const len = Math.sqrt(dx * dx + dy * dy) || 1;
+        perpX = -dy / len;
+        perpY = dx / len;
+      } else if (i > 0) {
+        const dx = trail[i].x - trail[i - 1].x;
+        const dy = trail[i].y - trail[i - 1].y;
+        const len = Math.sqrt(dx * dx + dy * dy) || 1;
+        perpX = -dy / len;
+        perpY = dx / len;
+      }
+      const amp = (1 - t) * 5; // more wobble at tail
+      const offset = Math.sin(now * 14 + i * 0.9) * amp;
+      wobble.push({ x: trail[i].x + perpX * offset, y: trail[i].y + perpY * offset });
+    }
+
+    // Outer glow
+    for (let i = 1; i < trail.length; i++) {
+      const t = (i - 1) / (trail.length - 1);
+      const w = 4 + t * 12;
+      ctx.strokeStyle = `rgba(200,20,20,${0.1 + t * 0.25})`;
+      ctx.lineWidth = w;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(wobble[i - 1].x, wobble[i - 1].y);
+      ctx.lineTo(wobble[i].x, wobble[i].y);
+      ctx.stroke();
+    }
+    // Core ribbon
+    for (let i = 1; i < trail.length; i++) {
+      const t = (i - 1) / (trail.length - 1);
+      const w = 1.5 + t * 5;
+      ctx.strokeStyle = `rgba(235,35,35,${0.35 + t * 0.55})`;
+      ctx.lineWidth = w;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(wobble[i - 1].x, wobble[i - 1].y);
+      ctx.lineTo(wobble[i].x, wobble[i].y);
+      ctx.stroke();
+    }
+  }
+
   // Fireballs
   for (const p of projectiles) { drawFireball(p); }
 
@@ -896,6 +1151,7 @@ const victoryName = document.getElementById('victoryName');
 const victorySub = document.getElementById('victorySub');
 
 function showVictory(winner) {
+  sfx('victory');
   const isP1 = winner.character === p1Char;
   victoryName.textContent = winner.character.name + ' WIN';
   victoryName.style.color = isP1 ? '#e94560' : '#0f9bff';
@@ -913,7 +1169,7 @@ document.addEventListener('keydown', e => {
 });
 
 document.getElementById('backBtn').addEventListener('click', () => { window.location.href = 'select.html'; });
-document.getElementById('startBtn').addEventListener('click', hideOverlay);
+document.getElementById('startBtn').addEventListener('click', () => { initAudio(); hideOverlay(); });
 
 // ========== Init ==========
 createBalls();
