@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>弹球碰撞 - 对战</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background: #1a1a2e;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    user-select: none;
+  }
+  .center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+  }
+  canvas {
+    border: 2px solid #2a2a4a;
+    border-radius: 10px;
+    background: #16213e;
+  }
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .info {
+    color: #808090;
+    font-size: 13px;
+    text-align: center;
+    line-height: 1.6;
+  }
+  .info kbd {
+    background: #2a2a4a;
+    color: #c0c0d0;
+    padding: 1px 7px;
+    border-radius: 4px;
+    font-size: 12px;
+    border: 1px solid #3a3a5a;
+  }
+  button {
+    padding: 8px 24px;
+    background: #e94560;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.2s;
+    font-weight: 500;
+  }
+  button:hover { background: #c73652; }
+  .btn-secondary {
+    background: #2a2a4a;
+  }
+  .btn-secondary:hover { background: #3a3a5a; }
+
+  /* ---- HP Bars ---- */
+  .hp-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    width: 500px;
+  }
+  .hp-block {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .hp-block .hp-name {
+    color: #c0c0d0;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .hp-block.right .hp-name { text-align: right; }
+  .hp-bar-outer {
+    width: 100%;
+    height: 14px;
+    background: #0f0f23;
+    border-radius: 7px;
+    overflow: hidden;
+    border: 1px solid #2a2a4a;
+  }
+  .hp-bar-inner {
+    height: 100%;
+    border-radius: 7px;
+    transition: width 0.15s, background 0.15s;
+  }
+  .hp-block .hp-nums {
+    color: #808090;
+    font-size: 10px;
+  }
+  .hp-block.right .hp-nums { text-align: right; }
+  .hp-vs {
+    color: #e94560;
+    font-size: 16px;
+    font-weight: 900;
+    font-style: italic;
+    text-shadow: 0 0 12px rgba(233,69,96,0.4);
+    flex-shrink: 0;
+  }
+
+  /* ---- Victory Overlay ---- */
+  .victory-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(5, 5, 20, 0.82);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 200;
+    backdrop-filter: blur(8px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+  }
+  .victory-overlay.show {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .victory-card {
+    text-align: center;
+    animation: victoryBounce 0.5s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+  }
+  @keyframes victoryBounce {
+    0%   { transform: scale(0.3); opacity: 0; }
+    60%  { transform: scale(1.08); opacity: 1; }
+    100% { transform: scale(1);    opacity: 1; }
+  }
+  .victory-label {
+    color: #9090a0;
+    font-size: 16px;
+    letter-spacing: 3px;
+    margin-bottom: 8px;
+  }
+  .victory-name {
+    font-size: 56px;
+    font-weight: 900;
+    letter-spacing: 2px;
+    text-shadow: 0 0 60px currentColor;
+    margin-bottom: 12px;
+  }
+  .victory-sub {
+    color: #b0b0c0;
+    font-size: 18px;
+    margin-bottom: 28px;
+  }
+  .victory-overlay button {
+    padding: 10px 36px;
+    background: #e94560;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    cursor: pointer;
+    font-weight: 600;
+    letter-spacing: 1px;
+  }
+  .victory-overlay button:hover { background: #c73652; }
+
+
+  /* ---- VS Overlay ---- */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(5, 5, 20, 0.88);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+    backdrop-filter: blur(6px);
+    transition: opacity 0.35s;
+  }
+  .overlay.hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+  .overlay-card {
+    background: #0f0f23;
+    border: 2px solid #2a2a4a;
+    border-radius: 20px;
+    padding: 40px 50px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+    animation: popIn 0.4s ease-out;
+  }
+  @keyframes popIn {
+    from { transform: scale(0.85); opacity: 0; }
+    to   { transform: scale(1);    opacity: 1; }
+  }
+  .overlay-vs-row {
+    display: flex;
+    align-items: center;
+    gap: 32px;
+  }
+  .overlay-player {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+  .overlay-player .label {
+    color: #9090a0;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+  }
+  .overlay-player .char-name-lg {
+    color: #e0e0e0;
+    font-size: 20px;
+    font-weight: 700;
+  }
+  .overlay-ball-preview {
+    width: 90px;
+    height: 90px;
+  }
+  .overlay-vs {
+    color: #e94560;
+    font-size: 42px;
+    font-weight: 900;
+    font-style: italic;
+    text-shadow: 0 0 30px rgba(233,69,96,0.5);
+    letter-spacing: 2px;
+  }
+  .overlay-start-btn {
+    padding: 12px 48px;
+    background: linear-gradient(135deg, #e94560, #ff6b6b);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 18px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .overlay-start-btn:hover {
+    transform: scale(1.06);
+    box-shadow: 0 0 30px rgba(233,69,96,0.45);
+  }
+</style>
+</head>
+<body>
+
+<!-- VS Overlay -->
+<div class="overlay" id="overlay">
+  <div class="overlay-card">
+    <div class="overlay-vs-row">
+      <div class="overlay-player">
+        <span class="label">⚔️ 玩家 1</span>
+        <canvas class="overlay-ball-preview" id="preview1" width="180" height="180"></canvas>
+        <span class="char-name-lg" id="overlayName1"></span>
+      </div>
+      <div class="overlay-vs">VS</div>
+      <div class="overlay-player">
+        <span class="label">🛡️ 玩家 2</span>
+        <canvas class="overlay-ball-preview" id="preview2" width="180" height="180"></canvas>
+        <span class="char-name-lg" id="overlayName2"></span>
+      </div>
+    </div>
+    <button class="overlay-start-btn" id="startBtn">⚡ 开始对战</button>
+  </div>
+</div>
+
+<!-- Victory Overlay -->
+<div class="victory-overlay" id="victoryOverlay">
+  <div class="victory-card">
+    <div class="victory-label">🏆 WINNER 🏆</div>
+    <div class="victory-name" id="victoryName"></div>
+    <div class="victory-sub" id="victorySub"></div>
+    <button id="victoryBackBtn">↩ 返回选角</button>
+  </div>
+</div>
+<!-- Game -->
+<div class="center">
+  <!-- HP Bars -->
+  <div class="hp-row">
+    <div class="hp-block" id="hpBlock1">
+      <span class="hp-name" id="hpName1">烈焰</span>
+      <div class="hp-bar-outer">
+        <div class="hp-bar-inner" id="hpBar1"></div>
+      </div>
+      <span class="hp-nums" id="hpNums1">100 / 100</span>
+    </div>
+    <div class="hp-vs">VS</div>
+    <div class="hp-block right" id="hpBlock2">
+      <span class="hp-name" id="hpName2">深海</span>
+      <div class="hp-bar-outer">
+        <div class="hp-bar-inner" id="hpBar2"></div>
+      </div>
+      <span class="hp-nums" id="hpNums2">100 / 100</span>
+    </div>
+  </div>
+
+  <canvas id="canvas"></canvas>
+  <div class="info">
+    按 <kbd>空格</kbd> 暂停/继续
+  </div>
+  <button class="btn-secondary" id="backBtn">↩ 返回选角</button>
+</div>
+
+<script>
+// ========== Character Definitions ==========
+const CHARACTERS = [
+  { id:'fire',    name:'小黑', draw(ctx,r){ const g=ctx.createRadialGradient(-r*.3,-r*.3,r*.1,0,0,r); g.addColorStop(0,'#fff'); g.addColorStop(.25,'#ffdd00'); g.addColorStop(.55,'#ff6600'); g.addColorStop(1,'#911'); ctx.fillStyle=g; ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fill(); ctx.save(); ctx.clip(); for(let i=0;i<5;i++){ const a=i*Math.PI*.4+.2; ctx.fillStyle='rgba(255,255,200,0.25)'; ctx.beginPath(); ctx.moveTo(0,0); ctx.arc(0,0,r*.85,a,a+.3); ctx.closePath(); ctx.fill(); } ctx.restore(); } },
+  { id:'thunder', name:'阿力', draw(ctx,r){ const g=ctx.createRadialGradient(-r*.25,-r*.25,r*.08,0,0,r); g.addColorStop(0,'#fff'); g.addColorStop(.2,'#fe4'); g.addColorStop(.6,'#fa0'); g.addColorStop(1,'#630'); ctx.fillStyle=g; ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fill(); ctx.save(); ctx.clip(); ctx.fillStyle='rgba(255,255,255,0.35)'; ctx.beginPath(); ctx.moveTo(-r*.25,-r*.7); ctx.lineTo(r*.1,-r*.15); ctx.lineTo(-r*.05,-r*.05); ctx.lineTo(r*.3,r*.55); ctx.lineTo(r*.05,r*.2); ctx.lineTo(r*.2,r*.1); ctx.lineTo(-r*.2,r*.7); ctx.closePath(); ctx.fill(); ctx.restore(); } },
+];
+
+function getCharById(id) {
+  return CHARACTERS.find(c => c.id === id) || CHARACTERS[0];
+}
+
+// ========== Read URL params ==========
+const params = new URLSearchParams(window.location.search);
+let p1Char = getCharById(params.get('p1'));
+let p2Char = getCharById(params.get('p2'));
+
+// ========== Game State ==========
+const SIZE = 500;
+const BALL_RADIUS = 22;
+const SPEED = 200;
+
+const canvas = document.getElementById('canvas');
+canvas.width = SIZE;
+canvas.height = SIZE;
+const ctx = canvas.getContext('2d');
+
+let paused = true;
+let balls = [];
+let lastTime = null;
+
+// ========== Overlay ==========
+const overlay = document.getElementById('overlay');
+const preview1 = document.getElementById('preview1');
+const preview2 = document.getElementById('preview2');
+const overlayName1 = document.getElementById('overlayName1');
+const overlayName2 = document.getElementById('overlayName2');
+const pctx1 = preview1.getContext('2d');
+const pctx2 = preview2.getContext('2d');
+
+// HP bar DOM elements
+const hpName1 = document.getElementById('hpName1');
+const hpBar1 = document.getElementById('hpBar1');
+const hpNums1 = document.getElementById('hpNums1');
+const hpName2 = document.getElementById('hpName2');
+const hpBar2 = document.getElementById('hpBar2');
+const hpNums2 = document.getElementById('hpNums2');
+
+function hpBarColor(ratio) {
+  const r = ratio > 0.5 ? Math.round(510 * (1 - ratio)) : 255;
+  const g = ratio > 0.5 ? 255 : Math.round(510 * ratio);
+  return `rgb(${r},${g},60)`;
+}
+
+function updateHpBars() {
+  if (balls.length < 2) return;
+  const b1 = balls[0], b2 = balls[1];
+  hpName1.textContent = b1.character.name;
+  hpName2.textContent = b2.character.name;
+  const r1 = b1.hp / b1.maxHp;
+  const r2 = b2.hp / b2.maxHp;
+  hpBar1.style.width = (r1 * 100) + '%';
+  hpBar1.style.background = hpBarColor(r1);
+  hpBar2.style.width = (r2 * 100) + '%';
+  hpBar2.style.background = hpBarColor(r2);
+  hpNums1.textContent = `${b1.hp} / ${b1.maxHp}`;
+  hpNums2.textContent = `${b2.hp} / ${b2.maxHp}`;
+}
+
+function drawOverlayPreviews() {
+  [pctx1, pctx2].forEach(p => p.clearRect(0, 0, 180, 180));
+  overlayName1.textContent = p1Char.name;
+  overlayName2.textContent = p2Char.name;
+  pctx1.save(); pctx1.translate(90, 90); p1Char.draw(pctx1, 36); pctx1.restore();
+  pctx2.save(); pctx2.translate(90, 90); p2Char.draw(pctx2, 36); pctx2.restore();
+}
+
+function showOverlay() {
+  paused = true;
+  lastTime = null;
+  overlay.classList.remove('hidden');
+  drawOverlayPreviews();
+}
+
+function hideOverlay() {
+  overlay.classList.add('hidden');
+  paused = false;
+  lastTime = null;
+}
+
+// ========== Ball Physics ==========
+function rand(min, max) {
+  return Math.random() * (max - min) + min;
+}
+
+const MAX_HP = 100;
+const SPEED_BOOST = 380; // 阿力 speed when HP < 50
+let gameOver = null;
+let projectiles = [];
+let lightningBolts = [];
+let screenFlash = 0; // 0=none, 0-1=fade timer for flame scroll AoE
+
+function createBalls() {
+  gameOver = null;
+  victoryShown = false;
+  victoryOverlay.classList.remove('show');
+  projectiles = [];
+  lightningBolts = [];
+  screenFlash = 0;
+  balls = [];
+  for (let i = 0; i < 2; i++) {
+    let x, y;
+    for (let attempt = 0; attempt < 100; attempt++) {
+      x = rand(BALL_RADIUS, SIZE - BALL_RADIUS);
+      y = rand(BALL_RADIUS, SIZE - BALL_RADIUS);
+      const overlap = balls.some(b => {
+        const dx = b.x - x, dy = b.y - y;
+        return Math.sqrt(dx * dx + dy * dy) < BALL_RADIUS * 2 + 8;
+      });
+      if (!overlap) break;
+    }
+    const angle = rand(0, Math.PI * 2);
+    const ch = i === 0 ? p1Char : p2Char;
+    balls.push({
+      x, y,
+      vx: Math.cos(angle) * SPEED,
+      vy: Math.sin(angle) * SPEED,
+      radius: BALL_RADIUS,
+      character: ch,
+      maxHp: MAX_HP,
+      hp: MAX_HP,
+      // Character-specific
+      baseSpeed: SPEED,
+      fireballTimer: 0,       // 小黑: counts up to 5s
+      revived: false,         // 小黑: one-time revive used?
+      stunned: 0,
+      lightningMisses: 0,     // 阿力: consecutive missed casts
+      lastLightningTime: 0,   // 阿力: timestamp of last lightning cast for damage decay
+    });
+  }
+}
+
+// Check if bolt segment (x1,y1)->(x2,y2) hits circle (cx,cy,r)
+function segmentHitsCircle(x1, y1, x2, y2, cx, cy, r) {
+  const dx = x2 - x1, dy = y2 - y1;
+  const fx = x1 - cx, fy = y1 - cy;
+  const a = dx * dx + dy * dy;
+  const b = 2 * (fx * dx + fy * dy);
+  const c = fx * fx + fy * fy - r * r;
+  let disc = b * b - 4 * a * c;
+  if (disc < 0) return false;
+  disc = Math.sqrt(disc);
+  const t1 = (-b - disc) / (2 * a);
+  const t2 = (-b + disc) / (2 * a);
+  return (t1 >= 0 && t1 <= 1) || (t2 >= 0 && t2 <= 1) || (t1 < 0 && t2 > 1);
+}
+
+function spawnLightningBolts(origin, count) {
+  if (gameOver) return;
+  const enemy = balls.find(b => b !== origin && b.hp > 0);
+
+  // Cooldown: max once per 0.2s
+  const now = performance.now() / 1000;
+  const interval = now - (origin.lastLightningTime || 0);
+  if (interval < 0.2) return;
+  const boltDamage = Math.round(Math.min(10, 2 + interval * 8));
+  origin.lastLightningTime = now;
+
+  // Pity system: if 3 casts missed, force one bolt to aim at enemy
+  const pity = origin.lightningMisses >= 3;
+  const angles = [];
+  if (pity && enemy) {
+    const aimAngle = Math.atan2(enemy.y - origin.y, enemy.x - origin.x);
+    angles.push(aimAngle);
+  }
+  for (let i = angles.length; i < count; i++) {
+    angles.push(rand(0, Math.PI * 2));
+  }
+
+  let anyHit = false;
+
+  for (let i = 0; i < angles.length; i++) {
+    const angle = angles[i];
+    const aimed = (pity && i === 0 && enemy);
+
+    // Extend to screen edge
+    let tMin = 999;
+    const cosA = Math.cos(angle), sinA = Math.sin(angle);
+    if (Math.abs(cosA) > 0.0001) {
+      const t = (0 - origin.x) / cosA; if (t > 0) { const y = origin.y + sinA*t; if (y>=0 && y<=SIZE) tMin = Math.min(tMin, t); }
+      const t2 = (SIZE - origin.x) / cosA; if (t2 > 0) { const y = origin.y + sinA*t2; if (y>=0 && y<=SIZE) tMin = Math.min(tMin, t2); }
+    }
+    if (Math.abs(sinA) > 0.0001) {
+      const t = (0 - origin.y) / sinA; if (t > 0) { const x = origin.x + cosA*t; if (x>=0 && x<=SIZE) tMin = Math.min(tMin, t); }
+      const t2 = (SIZE - origin.y) / sinA; if (t2 > 0) { const x = origin.x + cosA*t2; if (x>=0 && x<=SIZE) tMin = Math.min(tMin, t2); }
+    }
+    const actualEndX = origin.x + cosA * tMin;
+    const actualEndY = origin.y + sinA * tMin;
+
+    // Generate zigzag segments (less jitter for aimed bolt)
+    const segCount = 6 + Math.floor(Math.random() * 5);
+    const segments = [];
+    for (let s = 0; s <= segCount; s++) {
+      const frac = s / segCount;
+      const jitterRange = aimed ? 4 : 20;
+      const jitter = (s > 0 && s < segCount) ? (Math.random() - 0.5) * jitterRange : 0;
+      segments.push({
+        x: origin.x + (actualEndX - origin.x) * frac + (-sinA) * jitter,
+        y: origin.y + (actualEndY - origin.y) * frac + cosA * jitter,
+      });
+    }
+
+    // Check damage against enemy
+    let hitEnemy = false;
+    if (enemy) {
+      for (let s = 0; s < segments.length - 1; s++) {
+        if (segmentHitsCircle(segments[s].x, segments[s].y, segments[s+1].x, segments[s+1].y, enemy.x, enemy.y, enemy.radius + 14)) {
+          hitEnemy = true;
+          anyHit = true;
+          break;
+        }
+      }
+    }
+
+    lightningBolts.push({
+      segments,
+      life: 0.45,
+      damage: boltDamage,
+      owner: origin,
+      hitEnemy,
+    });
+  }
+
+  // Update pity counter
+  if (anyHit) {
+    origin.lightningMisses = 0;
+  } else {
+    origin.lightningMisses++;
+  }
+
+  // Apply damage for bolts that hit
+  if (enemy) {
+    const hits = lightningBolts.filter(b => b.owner === origin && b.hitEnemy);
+    let totalDmg = 0;
+    for (const bolt of hits) {
+      totalDmg += bolt.damage;
+      bolt.hitEnemy = false; // only apply once
+    }
+    if (totalDmg > 0) {
+      takeDamage(enemy, totalDmg);
+      enemy.stunned = Math.max(enemy.stunned, 0.5);
+    }
+  }
+}
+
+function spawnFireballs(owner, target) {
+  for (let i = 0; i < 3; i++) {
+    const angle = rand(0, Math.PI * 2);
+    const dist = rand(20, 40);
+    projectiles.push({
+      x: owner.x + Math.cos(angle) * dist,
+      y: owner.y + Math.sin(angle) * dist,
+      vx: Math.cos(angle) * 120,
+      vy: Math.sin(angle) * 120,
+      radius: 6,
+      damage: 4,
+      owner: owner,
+      target: target,
+      type: 'fire',
+      life: 5,
+      trail: [], // for trail effect
+    });
+  }
+}
+
+function resolveBallCollision(a, b) {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  const minDist = a.radius + b.radius;
+
+  if (dist >= minDist || dist < 0.001) return;
+
+  const nx = dx / dist;
+  const ny = dy / dist;
+  const tx = -ny;
+  const ty = nx;
+
+  const aDOTn = a.vx * nx + a.vy * ny;
+  const bDOTn = b.vx * nx + b.vy * ny;
+  const aDOTt = a.vx * tx + a.vy * ty;
+  const bDOTt = b.vx * tx + b.vy * ty;
+
+  a.vx = bDOTn * nx + aDOTt * tx;
+  a.vy = bDOTn * ny + aDOTt * ty;
+  b.vx = aDOTn * nx + bDOTt * tx;
+  b.vy = aDOTn * ny + bDOTt * ty;
+
+  const overlap = minDist - dist;
+  const half = overlap / 2 + 0.5;
+  a.x -= half * nx;
+  a.y -= half * ny;
+  b.x += half * nx;
+  b.y += half * ny;
+
+  // 阿力 ability: spawn 4 lightning bolts on collision
+  if (a.character.id === 'thunder' && !gameOver) spawnLightningBolts(a, 4);
+  if (b.character.id === 'thunder' && !gameOver) spawnLightningBolts(b, 4);
+}
+
+function takeDamage(ball, dmg) {
+  if (ball.hp <= 0) return;
+  ball.hp = Math.max(0, ball.hp - dmg);
+
+  // 小黑 revive: 火焰卷轴
+  if (ball.hp <= 0 && ball.character.id === 'fire' && !ball.revived) {
+    ball.revived = true;
+    ball.hp = 30;
+    screenFlash = 0.5; // AoE visual
+    const enemy = balls.find(b => b !== ball);
+    if (enemy) {
+      enemy.hp = Math.max(0, enemy.hp - 10);
+      enemy.stunned = Math.max(enemy.stunned, 0.3); // brief stun from blast
+      if (enemy.hp <= 0) { gameOver = { winner: ball }; return; }
+    }
+    return;
+  }
+
+  if (ball.hp <= 0) {
+    const winner = balls.find(b => b !== ball);
+    if (winner) gameOver = { winner };
+  }
+}
+
+function update(dt) {
+  if (paused || gameOver) return;
+  const t = Math.min(dt, 0.05);
+
+  // Screen flash decay
+  if (screenFlash > 0) screenFlash = Math.max(0, screenFlash - dt);
+
+  // Update projectile cooldowns & speed
+  for (const ball of balls) {
+    // 小黑: fireball timer
+    if (ball.character.id === 'fire') {
+      ball.fireballTimer += t;
+      if (ball.fireballTimer >= 5) {
+        ball.fireballTimer -= 5;
+        const enemy = balls.find(b => b !== ball);
+        if (enemy) spawnFireballs(ball, enemy);
+      }
+    }
+    // 阿力: speed boost under 50% HP
+    if (ball.character.id === 'thunder') {
+      ball.baseSpeed = ball.hp < 50 ? SPEED_BOOST : SPEED;
+    }
+    // Paralysis decay
+    if (ball.stunned > 0) ball.stunned = Math.max(0, ball.stunned - t);
+  }
+
+  // Move projectiles
+  for (const proj of projectiles) {
+    proj.life -= t;
+    // Fireball homing — aggressive tracking
+    if (proj.type === 'fire' && proj.target) {
+      const dx = proj.target.x - proj.x;
+      const dy = proj.target.y - proj.y;
+      const d = Math.sqrt(dx * dx + dy * dy) || 1;
+      // Direct steer toward target
+      const steer = 1200;
+      const desiredVx = (dx / d) * 550;
+      const desiredVy = (dy / d) * 550;
+      proj.vx += (desiredVx - proj.vx) * Math.min(steer * t, 0.95);
+      proj.vy += (desiredVy - proj.vy) * Math.min(steer * t, 0.95);
+      const speed = Math.sqrt(proj.vx * proj.vx + proj.vy * proj.vy);
+      const maxSpeed = 550;
+      if (speed > maxSpeed) { proj.vx *= maxSpeed / speed; proj.vy *= maxSpeed / speed; }
+    }
+    // Record trail
+    if (proj.type === 'fire') {
+      proj.trail.push({ x: proj.x, y: proj.y });
+      if (proj.trail.length > 12) proj.trail.shift();
+    }
+
+    proj.x += proj.vx * t;
+    proj.y += proj.vy * t;
+
+    // Fireball hits wall -> remove
+    if (proj.x < 0 || proj.x > SIZE || proj.y < 0 || proj.y > SIZE) {
+      proj.life = -1;
+    }
+
+    // Fireball hits enemy ball
+    const enemy = balls.find(b => b !== proj.owner && b.hp > 0);
+    if (enemy) {
+      const dx = proj.x - enemy.x;
+      const dy = proj.y - enemy.y;
+      if (Math.sqrt(dx * dx + dy * dy) < enemy.radius + proj.radius) {
+        takeDamage(enemy, proj.damage);
+        proj.life = -1;
+      }
+    }
+  }
+  projectiles = projectiles.filter(p => p.life > 0);
+
+  // Lightning bolts decay
+  for (const bolt of lightningBolts) bolt.life -= t;
+  lightningBolts = lightningBolts.filter(b => b.life > 0);
+
+  // Move balls
+  for (const ball of balls) {
+    if (ball.stunned > 0) continue; // paralyzed
+    const s = ball.baseSpeed || SPEED;
+    const speed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+    if (speed > 0) { ball.vx = ball.vx / speed * s; ball.vy = ball.vy / speed * s; }
+
+    ball.x += ball.vx * t;
+    ball.y += ball.vy * t;
+
+    let hitWall = false;
+    if (ball.x - ball.radius < 0)      { ball.x = ball.radius;          ball.vx = Math.abs(ball.vx); hitWall = true; }
+    if (ball.x + ball.radius > SIZE)   { ball.x = SIZE - ball.radius;   ball.vx = -Math.abs(ball.vx); hitWall = true; }
+    if (ball.y - ball.radius < 0)      { ball.y = ball.radius;          ball.vy = Math.abs(ball.vy); hitWall = true; }
+    if (ball.y + ball.radius > SIZE)   { ball.y = SIZE - ball.radius;   ball.vy = -Math.abs(ball.vy); hitWall = true; }
+    // 阿力: wall collision also spawns lightning bolts
+    if (hitWall && ball.character.id === 'thunder' && !gameOver) spawnLightningBolts(ball, 4);
+  }
+
+  resolveBallCollision(balls[0], balls[1]);
+}
+
+// ========== Rendering ==========
+function drawBall(ball) {
+  ctx.save();
+  ctx.translate(ball.x, ball.y);
+
+  // Shrink as HP drops
+  const scale = 0.75 + 0.25 * (ball.hp / ball.maxHp);
+  ctx.scale(scale, scale);
+
+  ctx.beginPath();
+  ctx.arc(3, 3, ball.radius, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.fill();
+
+  ball.character.draw(ctx, ball.radius);
+
+  ctx.beginPath();
+  ctx.arc(0, 0, ball.radius, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function drawFireball(p) {
+  // Trail
+  if (p.trail && p.trail.length > 1) {
+    for (let i = 1; i < p.trail.length; i++) {
+      const alpha = i / p.trail.length * 0.7;
+      const r = p.radius * (i / p.trail.length);
+      ctx.fillStyle = `rgba(255,140,20,${alpha})`;
+      ctx.beginPath(); ctx.arc(p.trail[i].x, p.trail[i].y, r, 0, Math.PI*2); ctx.fill();
+    }
+  }
+  // Glow + core
+  const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.radius + 4);
+  g.addColorStop(0, '#ffffaa');
+  g.addColorStop(0.25, '#ffdd00');
+  g.addColorStop(0.6, '#ff6600');
+  g.addColorStop(1, 'rgba(200,30,0,0)');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(p.x, p.y, p.radius + 4, 0, Math.PI*2); ctx.fill();
+}
+
+function drawLightningBolts() {
+  for (const bolt of lightningBolts) {
+    const segs = bolt.segments;
+    const alpha = bolt.life / 0.45;
+    if (!segs || segs.length < 2) continue;
+    // Outer glow
+    ctx.strokeStyle = `rgba(255,238,100,${0.35 * alpha})`;
+    ctx.lineWidth = 7;
+    ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(segs[0].x, segs[0].y);
+    for (let i = 1; i < segs.length; i++) ctx.lineTo(segs[i].x, segs[i].y);
+    ctx.stroke();
+    // Mid glow
+    ctx.strokeStyle = `rgba(255,255,200,${0.7 * alpha})`;
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(segs[0].x, segs[0].y);
+    for (let i = 1; i < segs.length; i++) ctx.lineTo(segs[i].x, segs[i].y);
+    ctx.stroke();
+    // Core
+    ctx.strokeStyle = `rgba(255,255,255,${alpha})`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(segs[0].x, segs[0].y);
+    for (let i = 1; i < segs.length; i++) ctx.lineTo(segs[i].x, segs[i].y);
+    ctx.stroke();
+  }
+}
+
+function draw() {
+  ctx.clearRect(0, 0, SIZE, SIZE);
+
+  // Grid
+  ctx.strokeStyle = 'rgba(255,255,255,0.025)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < SIZE; i += 50) {
+    ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, SIZE); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(SIZE, i); ctx.stroke();
+  }
+
+  // Screen flash (flame scroll AoE)
+  if (screenFlash > 0) {
+    ctx.fillStyle = `rgba(255,120,20,${screenFlash * 0.25})`;
+    ctx.fillRect(0, 0, SIZE, SIZE);
+  }
+
+  // Trails
+  for (const ball of balls) {
+    ctx.fillStyle = 'rgba(255,255,255,0.04)';
+    ctx.beginPath();
+    ctx.arc(ball.x, ball.y, ball.radius + 5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Lightning bolts (behind balls)
+  drawLightningBolts();
+  // Fireballs
+  for (const p of projectiles) { drawFireball(p); }
+
+  for (const ball of balls) {
+    // Stunned effect
+    if (ball.stunned > 0) {
+      ctx.save();
+      ctx.translate(ball.x, ball.y);
+      ctx.strokeStyle = 'rgba(255,255,100,0.7)';
+      ctx.lineWidth = 2;
+      const stunRatio = ball.stunned / 0.5;
+      ctx.beginPath(); ctx.arc(0, 0, ball.radius + 6, 0, Math.PI * 2 * stunRatio); ctx.stroke();
+      ctx.restore();
+    }
+    drawBall(ball);
+  }
+
+  // Pause overlay
+  if (paused && !overlay.classList.contains('hidden')) {
+    // VS overlay active
+  } else if (paused) {
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx.fillRect(0, 0, SIZE, SIZE);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 26px system-ui';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('⏸ 已暂停', SIZE / 2, SIZE / 2);
+    ctx.textBaseline = 'alphabetic';
+    ctx.textAlign = 'start';
+  }
+}
+
+let victoryShown = false;
+
+function loop(timestamp) {
+  if (lastTime === null) lastTime = timestamp;
+  const dt = (timestamp - lastTime) / 1000;
+  lastTime = timestamp;
+
+  update(dt);
+  updateHpBars();
+
+  if (gameOver && !victoryShown) {
+    victoryShown = true;
+    showVictory(gameOver.winner);
+  }
+
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// ========== Victory ==========
+const victoryOverlay = document.getElementById('victoryOverlay');
+const victoryName = document.getElementById('victoryName');
+const victorySub = document.getElementById('victorySub');
+
+function showVictory(winner) {
+  const isP1 = winner.character === p1Char;
+  victoryName.textContent = winner.character.name + ' WIN';
+  victoryName.style.color = isP1 ? '#e94560' : '#0f9bff';
+  victorySub.textContent = `玩家 ${isP1 ? '1' : '2'} 取得胜利`;
+  victoryOverlay.classList.add('show');
+}
+
+document.getElementById('victoryBackBtn').addEventListener('click', () => {
+  window.location.href = 'select.html';
+});
+
+// ========== Controls ==========
+document.addEventListener('keydown', e => {
+  if (e.key === ' ') { e.preventDefault(); if (!overlay.classList.contains('hidden')) return; paused = !paused; }
+});
+
+document.getElementById('backBtn').addEventListener('click', () => { window.location.href = 'select.html'; });
+document.getElementById('startBtn').addEventListener('click', hideOverlay);
+
+// ========== Init ==========
+createBalls();
+updateHpBars();
+drawOverlayPreviews();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>弹球碰撞 - 角色选择</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background: #1a1a2e;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    user-select: none;
+  }
+  .page {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 28px;
+  }
+  .title {
+    color: #e0e0e0;
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: 1px;
+  }
+  .main-row {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+
+  /* Player columns */
+  .player-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    background: #0f0f23;
+    border: 1px solid #2a2a4a;
+    border-radius: 14px;
+    padding: 22px 16px;
+    width: 200px;
+  }
+  .player-col h2 {
+    color: #e0e0e0;
+    font-size: 17px;
+    font-weight: 600;
+  }
+  .big-preview {
+    width: 100px;
+    height: 100px;
+  }
+  .char-label {
+    color: #c0c0d0;
+    font-size: 15px;
+    font-weight: 600;
+    min-height: 20px;
+  }
+  .divider {
+    width: 100%;
+    height: 1px;
+    background: #2a2a4a;
+  }
+  .char-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+  }
+  .char-card {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 8px;
+    border-radius: 8px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: all 0.15s;
+    background: #16163a;
+  }
+  .char-card:hover {
+    background: #1e1e4a;
+    border-color: #3a3a6a;
+  }
+  .char-card.selected {
+    border-color: #e94560;
+    background: #1e1030;
+    box-shadow: 0 0 10px rgba(233,69,96,0.2);
+  }
+  .char-card.p2-selected {
+    border-color: #0f9bff;
+    background: #101e30;
+    box-shadow: 0 0 10px rgba(15,155,255,0.2);
+  }
+  .char-card.taken {
+    opacity: 0.3;
+    pointer-events: none;
+  }
+  .mini-preview {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .char-name-sm {
+    color: #d0d0e0;
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  /* VS */
+  .vs-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+  .vs-text {
+    color: #e94560;
+    font-size: 40px;
+    font-weight: 900;
+    font-style: italic;
+    text-shadow: 0 0 30px rgba(233,69,96,0.5);
+    letter-spacing: 2px;
+  }
+
+  /* Start button */
+  .start-btn {
+    padding: 14px 56px;
+    background: linear-gradient(135deg, #e94560, #ff6b6b);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 20px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 2px;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .start-btn:hover {
+    transform: scale(1.06);
+    box-shadow: 0 0 30px rgba(233,69,96,0.45);
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="title">⚔️ 选择你的角色 🛡️</div>
+
+  <div class="main-row">
+    <!-- Player 1 -->
+    <div class="player-col" id="col1">
+      <h2>玩家 1</h2>
+      <canvas class="big-preview" id="big1" width="200" height="200"></canvas>
+      <span class="char-label" id="label1">小黑</span>
+      <div class="divider"></div>
+      <div class="char-list" id="list1"></div>
+    </div>
+
+    <!-- VS -->
+    <div class="vs-col">
+      <div class="vs-text">VS</div>
+    </div>
+
+    <!-- Player 2 -->
+    <div class="player-col" id="col2">
+      <h2>玩家 2</h2>
+      <canvas class="big-preview" id="big2" width="200" height="200"></canvas>
+      <span class="char-label" id="label2">阿力</span>
+      <div class="divider"></div>
+      <div class="char-list" id="list2"></div>
+    </div>
+  </div>
+
+  <button class="start-btn" id="goBtn">⚡ 开始对战</button>
+</div>
+
+<script>
+const CHARACTERS = [
+  { id:'fire',    name:'小黑', draw(ctx,r){ const g=ctx.createRadialGradient(-r*.3,-r*.3,r*.1,0,0,r); g.addColorStop(0,'#fff'); g.addColorStop(.25,'#ffdd00'); g.addColorStop(.55,'#ff6600'); g.addColorStop(1,'#911'); ctx.fillStyle=g; ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fill(); ctx.save(); ctx.clip(); for(let i=0;i<5;i++){ const a=i*Math.PI*.4+.2; ctx.fillStyle='rgba(255,255,200,0.25)'; ctx.beginPath(); ctx.moveTo(0,0); ctx.arc(0,0,r*.85,a,a+.3); ctx.closePath(); ctx.fill(); } ctx.restore(); } },
+  { id:'thunder', name:'阿力', draw(ctx,r){ const g=ctx.createRadialGradient(-r*.25,-r*.25,r*.08,0,0,r); g.addColorStop(0,'#fff'); g.addColorStop(.2,'#fe4'); g.addColorStop(.6,'#fa0'); g.addColorStop(1,'#630'); ctx.fillStyle=g; ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fill(); ctx.save(); ctx.clip(); ctx.fillStyle='rgba(255,255,255,0.35)'; ctx.beginPath(); ctx.moveTo(-r*.25,-r*.7); ctx.lineTo(r*.1,-r*.15); ctx.lineTo(-r*.05,-r*.05); ctx.lineTo(r*.3,r*.55); ctx.lineTo(r*.05,r*.2); ctx.lineTo(r*.2,r*.1); ctx.lineTo(-r*.2,r*.7); ctx.closePath(); ctx.fill(); ctx.restore(); } },
+];
+
+let p1Char = CHARACTERS[0];
+let p2Char = CHARACTERS[1];
+
+function drawBigPreview(canvas, ch) {
+  const pctx = canvas.getContext('2d');
+  pctx.clearRect(0, 0, canvas.width, canvas.height);
+  pctx.save();
+  pctx.translate(canvas.width / 2, canvas.height / 2);
+  ch.draw(pctx, 38);
+  pctx.restore();
+}
+
+function updateAll() {
+  drawBigPreview(document.getElementById('big1'), p1Char);
+  drawBigPreview(document.getElementById('big2'), p2Char);
+  document.getElementById('label1').textContent = p1Char.name;
+  document.getElementById('label2').textContent = p2Char.name;
+
+  document.querySelectorAll('.char-card').forEach(card => {
+    const pid = parseInt(card.dataset.player);
+    const cid = card.dataset.charId;
+    const otherChar = pid === 1 ? p2Char : p1Char;
+    const isTaken = otherChar && otherChar.id === cid;
+    card.classList.toggle('taken', isTaken);
+    card.style.opacity = isTaken ? '0.3' : '1';
+    card.style.pointerEvents = isTaken ? 'none' : 'auto';
+    const myChar = pid === 1 ? p1Char : p2Char;
+    card.classList.toggle('selected', myChar && myChar.id === cid && pid === 1);
+    card.classList.toggle('p2-selected', myChar && myChar.id === cid && pid === 2);
+  });
+}
+
+function buildLists() {
+  ['list1', 'list2'].forEach((listId, pi) => {
+    const list = document.getElementById(listId);
+    CHARACTERS.forEach(ch => {
+      const card = document.createElement('div');
+      card.className = 'char-card';
+      card.dataset.player = pi + 1;
+      card.dataset.charId = ch.id;
+
+      const mini = document.createElement('canvas');
+      mini.className = 'mini-preview';
+      mini.width = 64; mini.height = 64;
+      const mctx = mini.getContext('2d');
+      mctx.save(); mctx.translate(32, 32); ch.draw(mctx, 12); mctx.restore();
+
+      const nameEl = document.createElement('span');
+      nameEl.className = 'char-name-sm';
+      nameEl.textContent = ch.name;
+
+      card.appendChild(mini);
+      card.appendChild(nameEl);
+
+      card.addEventListener('click', () => {
+        if (pi === 0) p1Char = ch;
+        else p2Char = ch;
+        updateAll();
+      });
+
+      list.appendChild(card);
+    });
+  });
+  updateAll();
+}
+
+document.getElementById('goBtn').addEventListener('click', () => {
+  window.location.href = `index.html?p1=${p1Char.id}&p2=${p2Char.id}`;
+});
+
+buildLists();
+</script>
+</body>
+</html>
